@@ -229,7 +229,7 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 			m.l.Warn("unexpected response from celestia got", "height", height)
 			return nil, errors.New("unexpected response code")
 		}
-		frameRef := celestia.FrameRef{
+		frameRef := celestia.FrameCelestiaStdRef{
 			BlockHeight:  height,
 			TxCommitment: com,
 		}
