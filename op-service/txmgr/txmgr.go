@@ -221,21 +221,23 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 			return nil, err
 		}
 		height, err := m.daClient.Blob.Submit(ctx, []*blob.Blob{dataBlob}, openrpc.DefaultSubmitOptions())
-		if err != nil {
-			m.l.Warn("unable to publish tx to celestia", "err", err)
-			return nil, err
+		if err == nil && height != 0 {
+			frameRef := celestia.FrameCelestiaStdRef{
+				BlockHeight:  height,
+				TxCommitment: com,
+			}
+			frameRefData, _ := frameRef.MarshalBinary()
+			candidate.TxData = frameRefData
+			m.l.Info("submitting txdata", "celestia height", height, "txdata", hex.EncodeToString(frameRefData))
+		} else {
+			m.l.Warn("unable to publish tx to celestia; falling back to eth", "err", err)
+			frameRef := celestia.FrameEthereumStdRef{
+				Calldata: candidate.TxData,
+			}
+			frameRefData, _ := frameRef.MarshalBinary()
+			candidate.TxData = frameRefData
+			candidate.GasLimit = 0
 		}
-		if height == 0 {
-			m.l.Warn("unexpected response from celestia got", "height", height)
-			return nil, errors.New("unexpected response code")
-		}
-		frameRef := celestia.FrameCelestiaStdRef{
-			BlockHeight:  height,
-			TxCommitment: com,
-		}
-		frameRefData, _ := frameRef.MarshalBinary()
-		candidate.TxData = frameRefData
-		m.l.Info("submitting txdata", "celestia height", height, "txdata", hex.EncodeToString(frameRefData))
 	}
 	tx, err := retry.Do(ctx, 30, retry.Fixed(2*time.Second), func() (*types.Transaction, error) {
 		tx, err := m.craftTx(ctx, candidate)

@@ -138,23 +138,22 @@ func DataFromEVMTransactions(config *rollup.Config, daCfg *rollup.DAConfig, batc
 				continue // not an authorized batch submitter, ignore
 			}
 
-			if daCfg != nil {
-				data := tx.Data()
-				version := data[0]
-				switch version {
-				case celestia.FrameCelestiaStd:
-					frameRef := celestia.FrameCelestiaStdRef{}
-					frameRef.UnmarshalBinary(data)
-					blob, err := daCfg.Client.Blob.Get(context.Background(), frameRef.BlockHeight, daCfg.Namespace, frameRef.TxCommitment)
-					if err != nil {
-						return nil, err
-					}
-					data = blob.Data
-				default:
+			data := tx.Data()
+			switch data[0] {
+			case celestia.FrameCelestiaStd:
+				frameRef := celestia.FrameCelestiaStdRef{}
+				frameRef.UnmarshalBinary(data[1:])
+				blob, err := daCfg.Client.Blob.Get(context.Background(), frameRef.BlockHeight, daCfg.Namespace, frameRef.TxCommitment)
+				if err != nil {
 					return nil, err
 				}
-			} else {
-				out = append(out, tx.Data())
+				out = append(out, blob.Data)
+			case celestia.FrameEthereumStd:
+				frameRef := celestia.FrameEthereumStdRef{}
+				frameRef.UnmarshalBinary(data[1:])
+				out = append(out, frameRef.Calldata)
+			default:
+				return nil, err
 			}
 		}
 	}
