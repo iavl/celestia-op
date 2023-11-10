@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/rollkit/celestia-openrpc/types/share"
 
 	"github.com/ethereum-optimism/optimism/op-celestia/celestia"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -140,6 +141,18 @@ func DataFromEVMTransactions(config *rollup.Config, daCfg *rollup.DAConfig, batc
 
 			data := tx.Data()
 			switch data[0] {
+			case celestia.FrameCelestiaLegacy:
+				frameRef := celestia.FrameCelestiaLegacyRef{}
+				frameRef.UnmarshalBinary(data[1:])
+				blobs, err := daCfg.Client.Blob.GetAll(context.Background(), frameRef.BlockHeight, []share.Namespace{daCfg.Namespace})
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, blobs[frameRef.TxIndex].Data)
+			case celestia.FrameEthereumStd:
+				frameRef := celestia.FrameEthereumStdRef{}
+				frameRef.UnmarshalBinary(data[1:])
+				out = append(out, frameRef.Calldata)
 			case celestia.FrameCelestiaStd:
 				frameRef := celestia.FrameCelestiaStdRef{}
 				frameRef.UnmarshalBinary(data[1:])
@@ -148,10 +161,6 @@ func DataFromEVMTransactions(config *rollup.Config, daCfg *rollup.DAConfig, batc
 					return nil, err
 				}
 				out = append(out, blob.Data)
-			case celestia.FrameEthereumStd:
-				frameRef := celestia.FrameEthereumStdRef{}
-				frameRef.UnmarshalBinary(data[1:])
-				out = append(out, frameRef.Calldata)
 			default:
 				return nil, err
 			}
