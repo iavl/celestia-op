@@ -162,7 +162,7 @@ func DataFromEVMTransactions(config *rollup.Config, daCfg *rollup.DAConfig, batc
 				}
 				out = append(out, blob.Data)
 			default:
-				return nil, err
+				return nil, errors.New("unknown frame version")
 			}
 		}
 	}
