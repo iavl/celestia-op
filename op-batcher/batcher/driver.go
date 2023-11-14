@@ -362,21 +362,22 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txDat
 		return
 	}
 	height, err := l.daClient.Client.Blob.Submit(l.killCtx, []*blob.Blob{dataBlob}, openrpc.DefaultSubmitOptions())
-	if err != nil {
-		l.Log.Warn("unable to publish tx to celestia", "err", err)
-		return
+	if err == nil && height != 0 {
+		frameRef := celestia.FrameCelestiaStdRef{
+			BlockHeight:  height,
+			TxCommitment: com,
+		}
+		frameRefData, _ := frameRef.MarshalBinary()
+		data = frameRefData
+		l.Log.Info("submitting txdata", "celestia height", height, "txdata", hex.EncodeToString(frameRefData))
+	} else {
+		l.Log.Warn("unable to publish tx to celestia; falling back to eth", "err", err)
+		frameRef := celestia.FrameEthereumStdRef{
+			Calldata: data,
+		}
+		frameRefData, _ := frameRef.MarshalBinary()
+		data = frameRefData
 	}
-	if height == 0 {
-		l.Log.Warn("unexpected response from celestia got", "height", height)
-		return
-	}
-	frameRef := celestia.FrameRef{
-		BlockHeight:  height,
-		TxCommitment: com,
-	}
-	frameRefData, _ := frameRef.MarshalBinary()
-	data = frameRefData
-	l.Log.Info("submitting txdata", "celestia height", height, "txdata", hex.EncodeToString(frameRefData))
 
 	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 	if err != nil {

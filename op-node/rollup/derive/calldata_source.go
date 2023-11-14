@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-celestia/celestia"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+
+	"github.com/rollkit/celestia-openrpc/types/share"
 )
 
 type DataIter interface {
@@ -145,18 +147,33 @@ func DataFromEVMTransactions(config *rollup.Config, daClient *rollup.DAClient, b
 				continue // not an authorized batch submitter, ignore
 			}
 
-			frameRef := celestia.FrameRef{}
-			frameRef.UnmarshalBinary(tx.Data())
-			if err != nil {
-				log.Warn("unable to decode frame reference", "index", j, "err", err)
-				return nil, err
+			data := tx.Data()
+			switch data[0] {
+			case celestia.FrameCelestiaLegacy:
+				frameRef := celestia.FrameCelestiaLegacyRef{}
+				frameRef.UnmarshalBinary(data[1:])
+				log.Info("requesting data from celestia", "namespace", hex.EncodeToString(daClient.Namespace), "height", frameRef.BlockHeight)
+				blobs, err := daClient.Client.Blob.GetAll(context.Background(), frameRef.BlockHeight, []share.Namespace{daClient.Namespace})
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, blobs[frameRef.TxIndex].Data)
+			case celestia.FrameEthereumStd:
+				frameRef := celestia.FrameEthereumStdRef{}
+				frameRef.UnmarshalBinary(data[1:])
+				out = append(out, frameRef.Calldata)
+			case celestia.FrameCelestiaStd:
+				frameRef := celestia.FrameCelestiaStdRef{}
+				frameRef.UnmarshalBinary(data[1:])
+				log.Info("requesting data from celestia", "namespace", hex.EncodeToString(daClient.Namespace), "height", frameRef.BlockHeight)
+				blob, err := daClient.Client.Blob.Get(context.Background(), frameRef.BlockHeight, daClient.Namespace, frameRef.TxCommitment)
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, blob.Data)
+			default:
+				return nil, errors.New("unknown frame version")
 			}
-			log.Info("requesting data from celestia", "namespace", hex.EncodeToString(daClient.Namespace), "height", frameRef.BlockHeight)
-			blob, err := daClient.Client.Blob.Get(context.Background(), frameRef.BlockHeight, daClient.Namespace, frameRef.TxCommitment)
-			if err != nil {
-				return nil, NewResetError(fmt.Errorf("failed to resolve frame from celestia: %w", err))
-			}
-			out = append(out, blob.Data)
 		}
 	}
 	return out, nil
