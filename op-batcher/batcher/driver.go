@@ -2,7 +2,6 @@ package batcher
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +18,12 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -391,28 +396,12 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txDat
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 	data := txdata.Bytes()
 
-	dataBlob, err := blob.NewBlobV0(l.daClient.Namespace, data)
-	com, err := blob.CreateCommitment(dataBlob)
-	if err != nil {
-		l.Log.Warn("unable to create blob commitment to celestia", "err", err)
-		return
-	}
-	height, err := l.daClient.Client.Blob.Submit(l.killCtx, []*blob.Blob{dataBlob}, openrpc.DefaultSubmitOptions())
+	ids, _, err := l.daClient.Client.Submit([][]byte{data})
 	if err != nil {
 		l.Log.Warn("unable to publish tx to celestia", "err", err)
 		return
 	}
-	if height == 0 {
-		l.Log.Warn("unexpected response from celestia got", "height", height)
-		return
-	}
-	frameRef := celestia.FrameRef{
-		BlockHeight:  height,
-		TxCommitment: com,
-	}
-	frameRefData, _ := frameRef.MarshalBinary()
-	data = frameRefData
-	l.Log.Info("submitting txdata", "celestia height", height, "txdata", hex.EncodeToString(frameRefData))
+	data = ids[0]
 
 	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 	if err != nil {
