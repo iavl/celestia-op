@@ -151,7 +151,7 @@ func (l *BatchSubmitter) Start() error {
 	l.wg.Add(1)
 	go l.loop()
 
-	daClient, err := rollup.NewDAClient(l.DAConfig)
+	daClient, err := rollup.NewDAClient(l.RollupConfig.DataAvailabilityRPC)
 	if err != nil {
 		return err
 	}
