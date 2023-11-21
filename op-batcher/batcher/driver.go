@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/big"
 	_ "net/http/pprof"
+	"os"
 	"sync"
 	"time"
 
@@ -151,7 +152,11 @@ func (l *BatchSubmitter) Start() error {
 	l.wg.Add(1)
 	go l.loop()
 
-	daClient, err := rollup.NewDAClient(l.RollupConfig.DataAvailabilityRPC)
+	daRpc := os.Getenv("OP_BATCHER_DA_RPC")
+	if daRpc == "" {
+		daRpc = "da:26650"
+	}
+	daClient, err := rollup.NewDAClient(daRpc)
 	if err != nil {
 		return err
 	}
