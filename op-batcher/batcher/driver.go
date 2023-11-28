@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -20,12 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -162,7 +157,7 @@ func (l *BatchSubmitter) Start() error {
 	}
 	l.daClient = daClient
 
-	l.Log.Info("Batch Submitter started")
+	l.log.Info("Batch Submitter started")
 	return nil
 }
 
@@ -404,10 +399,10 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txDat
 
 	ids, _, err := l.daClient.Client.Submit([][]byte{data})
 	if err == nil && len(ids) == 1 {
-		l.Log.Info("celestia: blob successfully submitted", "id", hex.EncodeToString(ids[0]))
+		l.log.Info("celestia: blob successfully submitted", "id", hex.EncodeToString(ids[0]))
 		data = append([]byte{derive.DerivationVersionCelestia}, ids[0]...)
 	} else {
-		l.Log.Info("celestia: blob submission failed; falling back to eth", "err", err)
+		l.log.Info("celestia: blob submission failed; falling back to eth", "err", err)
 	}
 
 	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
