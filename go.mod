@@ -215,3 +215,5 @@ replace github.com/ethereum/go-ethereum v1.13.1 => github.com/ethereum-optimism/
 
 //replace github.com/ethereum-optimism/superchain-registry/superchain => ../superchain-registry/superchain
 //replace github.com/ethereum/go-ethereum v1.13.1 => ../go-ethereum
+
+replace github.com/rollkit/go-da => github.com/rollkit/go-da v0.0.0-20231221215544-c8cfc07b4256

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -123,6 +124,8 @@ func (ds *DataSource) Next(ctx context.Context) (eth.Data, error) {
 func DataFromEVMTransactions(config *rollup.Config, batcherAddr common.Address, txs types.Transactions, log log.Logger) ([]eth.Data, error) {
 	var out []eth.Data
 	l1Signer := config.L1Signer()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.BlockTime)*time.Second)
+	defer cancel()
 	for j, tx := range txs {
 		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
 			seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
@@ -143,7 +146,7 @@ func DataFromEVMTransactions(config *rollup.Config, batcherAddr common.Address, 
 				switch data[0] {
 				case DerivationVersionCelestia:
 					log.Info("celestia: blob request", "id", hex.EncodeToString(tx.Data()))
-					blobs, err := daClient.Client.Get([][]byte{data[1:]})
+					blobs, err := daClient.Client.Get(ctx, [][]byte{data[1:]})
 					if err != nil {
 						return nil, NewResetError(fmt.Errorf("celestia: failed to resolve frame: %w", err))
 					}
