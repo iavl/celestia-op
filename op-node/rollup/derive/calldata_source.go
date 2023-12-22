@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
+	"github.com/celestiaorg/celestia-node/blob"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -136,29 +138,32 @@ func DataFromEVMTransactions(config *rollup.Config, batcherAddr common.Address, 
 				continue // not an authorized batch submitter, ignore
 			}
 			data := tx.Data()
-			switch len(data) {
-			case 0:
+			if len(data) == 0 {
 				out = append(out, data)
-			default:
-				switch data[0] {
-				case DerivationVersionCelestia:
-					log.Info("celestia: blob request", "id", hex.EncodeToString(tx.Data()))
-					blobs, err := daClient.Client.Get([][]byte{data[1:]})
-					if err != nil {
-						return nil, NewResetError(fmt.Errorf("celestia: failed to resolve frame: %w", err))
+				continue
+			}
+			switch data[0] {
+			case DerivationVersionCelestia:
+				log.Info("celestia: blob request", "id", hex.EncodeToString(tx.Data()))
+				blobs, err := daClient.Client.Get([][]byte{data[1:]})
+				if err != nil {
+					if strings.Contains(err.Error(), blob.ErrBlobNotFound.Error()) {
+						log.Warn("celestia: blob not found", "error", err)
+						continue
 					}
-					if len(blobs) != 1 {
-						log.Warn("celestia: unexpected length for blobs", "expected", 1, "got", len(blobs))
-						if len(blobs) == 0 {
-							log.Warn("celestia: skipping empty blobs")
-							continue
-						}
-					}
-					out = append(out, blobs[0])
-				default:
-					out = append(out, data)
-					log.Info("celestia: using eth fallback")
+					return nil, NewResetError(fmt.Errorf("celestia: failed to resolve frame: %w", err))
 				}
+				if len(blobs) != 1 {
+					log.Warn("celestia: unexpected length for blobs", "expected", 1, "got", len(blobs))
+					if len(blobs) == 0 {
+						log.Warn("celestia: skipping empty blobs")
+						continue
+					}
+				}
+				out = append(out, blobs[0])
+			default:
+				out = append(out, data)
+				log.Info("celestia: using eth fallback")
 			}
 		}
 	}
